@@ -7,6 +7,8 @@
 - phrasing things more clearly without changing their meaning
 - polishing the README and other documents that explain the project (e.g. layout, design, and structure)
 
+**1.2** As an exception to 1.1, I may use AI and other tools to extract training and testing data from public datasets and convert it into a format I can use. Unfamiliar file formats are outside the scope of this challenge. Any code or tools used for this must stay separate from the neural network code and must be documented.
+
 ## 2. Research
 
 **2.1** I may only use the official Rust documentation at [doc.rust-lang.org](https://doc.rust-lang.org). The only exception is documentation for external Rust crates I use, which may be hosted elsewhere.

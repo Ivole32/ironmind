@@ -28,7 +28,7 @@ To keep everything transparent, I'll document the entire journey, including my t
 
 | | Rule |
 |---|---|
-| 🤖 | **No AI**, except for fixing spelling and wording in documentation and polishing documents that explain the project, like this README. Never in code. |
+| 🤖 | **No AI**, except for fixing spelling and wording in documentation and polishing documents that explain the project, like this README, and for extracting data from public datasets. Never in the neural network code. |
 | 📚 | **Only official docs**: the Rust documentation, docs of crates I use, and math unrelated to neural networks. |
 | 📦 | **As few crates as possible.** |
 | 🗂️ | **Public datasets are allowed**, properly cited according to their license. |
