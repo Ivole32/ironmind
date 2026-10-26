@@ -33,7 +33,7 @@ fn convert_u8_array_to_u32(data: &[u8; 4]) -> u32 {
     return ((converted[0] << 24) + (converted[1] << 16) + (converted[2] << 8) + (converted[3])).into();
 }
 
-fn get_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
+fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
     if args.len() <= 1 {
         panic!("No training folder specified.")
     }
@@ -89,5 +89,5 @@ fn get_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let (lables, images) = get_training_files(&args);
+    let (lables, images) = parse_training_files(&args);
 }
