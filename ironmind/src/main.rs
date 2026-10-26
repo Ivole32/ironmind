@@ -1,4 +1,6 @@
+use std::io::Write;
 use std::{fs};
+use std::fs::File;
 use std::fs::DirEntry;
 use std::env;
 
@@ -6,6 +8,8 @@ use std::env;
 struct LableFile {
     magic_number: u32,
     item_count: u32,
+    raw_data: Vec<u8>,
+    data_offset: u8,
     path: DirEntry
 }
 
@@ -15,6 +19,8 @@ struct ImageFile {
     item_count: u32,
     row_number: u32,
     column_number: u32,
+    raw_data: Vec<u8>,
+    data_offset: u8,
     path: DirEntry
 }
 
@@ -58,7 +64,9 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
 
         if magic_number == 2049 {
             println!("Parsing Lable-File header");
-            let lable_file = LableFile {magic_number, item_count, path: path.unwrap()};
+            let data_offset: u8 = 7;
+
+            let lable_file = LableFile {magic_number, item_count, raw_data, data_offset, path: path.unwrap()};
 
             files.0 = Some(lable_file);
 
@@ -71,7 +79,9 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
             let column_number_data = [raw_data[12], raw_data[13], raw_data[14], raw_data[15]];
             let column_number: u32 = convert_u8_array_to_u32(&column_number_data);
 
-            let image_file = ImageFile { magic_number, item_count, row_number, column_number, path: path.unwrap() };
+            let data_offset: u8 = 15;
+
+            let image_file = ImageFile { magic_number, item_count, row_number, column_number, raw_data, data_offset, path: path.unwrap() };
 
             files.1 = Some(image_file);
 
@@ -80,14 +90,32 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
         }
     }
 
-    println!("Lable: {:#?}; Image: {:#?}", files.0, files.1);
+    // println!("Lable: {:#?}; Image: {:#?}", files.0, files.1);
 
     return (files.0.expect("Lable file was not loaded"), files.1.expect("Image file was not loaded"));
 
 }
 
+fn open_file(filename: &'static str) -> File {
+    let file = File::options()
+        .append(true)
+        .create(true)
+        .open(filename);
+
+    return file.unwrap();
+}
+
+fn append_to_file(mut file: &File, buf: &[u8]) {
+    file.write(buf).expect("Unable to write data to file");
+}
+
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     let (lables, images) = parse_training_files(&args);
+    
+    let mut file = open_file(r".\model.data");
+
+    append_to_file(&file, b"001010111");
 }
