@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::{fs};
+use std::{fs, range};
 use std::fs::File;
 use std::fs::DirEntry;
 use std::env;
@@ -115,7 +115,34 @@ fn main() {
 
     let (lables, images) = parse_training_files(&args);
     
-    let mut file = open_file(r".\model.data");
+    let image_start_index: usize = (images.data_offset + 1).into();
+    let lable_start_index: usize = (lables.data_offset + 1).into();
+    println!("{:?}", lables.raw_data[lable_start_index]);
 
-    append_to_file(&file, b"001010111");
+    let mut i: usize = 0;
+    let mut buf: [u8; 28] = [0; 28];
+
+    loop {
+        //println!("{:?}", images.raw_data[image_start_index + i]);
+
+        if i == (images.column_number * images.row_number).try_into().unwrap() {
+            println!("{:?}", i);
+            break;
+        }
+        if i <= 27 {
+            buf[i] = images.raw_data[image_start_index + i];
+        } else {
+            buf[(i - 1) % 28] = images.raw_data[image_start_index + i];
+        }
+
+        if i % 27 == 0 {
+            println!("{:?}", buf);
+            buf = [0; 28];
+        }
+
+        i += 1;
+    }
+
+    println!("{:?}", args);
+
 }
