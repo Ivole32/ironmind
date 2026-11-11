@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::{fs, range};
+use std::fs;
 use std::fs::File;
 use std::fs::DirEntry;
 use std::env;
@@ -31,6 +31,14 @@ impl ImageFile {
         let end: usize = (self.data_offset + (index + 1) * image_unit).try_into().unwrap();
 
         return &self.raw_data[start..end];
+    }
+}
+
+impl LableFile {
+    fn parse_label(&self, index: u32) -> u8 {
+        let index: usize = (self.data_offset + index).try_into().unwrap();
+
+        return self.raw_data[index];
     }
 }
 
@@ -141,6 +149,48 @@ fn write_file_header(file: &File, magic_number: [u8; 4], input_count: u32, outpu
     append_to_file(file, &convert_u32_to_u8_array(&output_count));
 }
 
+fn train(input_count: u32, output_count: u32, lables: LableFile, images: ImageFile, file: &File) {
+    let input_count: usize = input_count.try_into().unwrap();
+    let output_count: usize = output_count.try_into().unwrap();
+
+    // A vec that holds another vec for every possible inputs weight
+    let mut model_data: Vec<Vec<u32>> = vec![vec![0; output_count]; input_count];
+
+    let mut i = 0;
+
+    loop {
+        if i >= lables.item_count{
+            break;
+        }
+
+        let number: usize = lables.parse_label(i).try_into().unwrap();
+        let image: &[u8] = images.parse_image(i);
+        //println!("{:?}", number);
+
+        let mut px_count: usize = 0;
+        for pixel in image {
+            //println!("{:?}", pixel);
+
+            if pixel > &0 {
+                model_data[px_count][number] += 1;
+            }
+
+            px_count += 1;
+        }
+
+        i += 1;
+    }
+
+    println!("{:?}; {:?}", model_data, model_data.len());
+
+    for pixel in model_data {
+        for weight in pixel.iter() {
+            append_to_file(file, &convert_u32_to_u8_array(&weight));
+        }
+    }
+
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -151,8 +201,8 @@ fn main() {
     // The magic bytes, chose that randomly, this is a representation of 2050
     const MODEL_MAGIC_BYTES: [u8; 4] = [0, 0, 8, 2];
 
-    // Get input neurone count and normalize to start counting at 1
-    let input_count: u32 = (images.column_number * images.row_number) - 1;
+    // Get input neurone count
+    let input_count: u32 = images.column_number * images.row_number;
 
     // The count of possible outputs the model can have, 0-9 in this case
     let output_count: u32 = 10;
@@ -160,7 +210,12 @@ fn main() {
     // Write the header values
     write_file_header(&model_file, MODEL_MAGIC_BYTES, input_count, output_count);
 
-    println!("{:?}", images.parse_image(0));
+    //println!("{:?}", images.parse_image(0));
+
+    println!("{:?}; {:?}", lables.item_count, images.item_count);
+
+    train(input_count, output_count, lables, images, &model_file);
+
 
     println!("{:?}", args);
 }
