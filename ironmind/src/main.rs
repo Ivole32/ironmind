@@ -9,7 +9,7 @@ struct LableFile {
     magic_number: u32,
     item_count: u32,
     raw_data: Vec<u8>,
-    data_offset: u8,
+    data_offset: u32,
     path: DirEntry
 }
 
@@ -20,8 +20,18 @@ struct ImageFile {
     row_number: u32,
     column_number: u32,
     raw_data: Vec<u8>,
-    data_offset: u8,
+    data_offset: u32,
     path: DirEntry
+}
+
+impl ImageFile {
+    fn parse_image(&self, index: u32) -> &[u8] {
+        let image_unit: u32 = self.column_number * self.row_number;
+        let start: usize = (self.data_offset + index * image_unit).try_into().unwrap();
+        let end: usize = (self.data_offset + (index + 1) * image_unit).try_into().unwrap();
+
+        return &self.raw_data[start..end];
+    }
 }
 
 fn convert_u8_to_u32(value: u8) -> u32 {
@@ -37,6 +47,22 @@ fn convert_u8_array_to_u32(data: &[u8; 4]) -> u32 {
     ];
 
     return ((converted[0] << 24) + (converted[1] << 16) + (converted[2] << 8) + (converted[3])).into();
+}
+
+fn convert_u32_to_u8_array(data: &u32) -> [u8; 4] {
+    println!("{:?}", data >> 24);
+    println!("{:?}", data >> 16);
+    println!("{:?}", data >> 8);
+    println!("{:?}", data << 24 >> 24);
+
+    let data: [u8; 4] = [
+        (data >> 24).try_into().unwrap(),
+        (data >> 16).try_into().unwrap(),
+        (data >> 8).try_into().unwrap(),
+        (data << 24 >> 24).try_into().unwrap()
+    ];
+
+    return data;
 }
 
 fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
@@ -64,7 +90,7 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
 
         if magic_number == 2049 {
             println!("Parsing Lable-File header");
-            let data_offset: u8 = 7;
+            let data_offset: u32 = 8;
 
             let lable_file = LableFile {magic_number, item_count, raw_data, data_offset, path: path.unwrap()};
 
@@ -79,7 +105,7 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
             let column_number_data = [raw_data[12], raw_data[13], raw_data[14], raw_data[15]];
             let column_number: u32 = convert_u8_array_to_u32(&column_number_data);
 
-            let data_offset: u8 = 15;
+            let data_offset: u32 = 16;
 
             let image_file = ImageFile { magic_number, item_count, row_number, column_number, raw_data, data_offset, path: path.unwrap() };
 
@@ -96,11 +122,11 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
 
 }
 
-fn open_file(filename: &'static str) -> File {
+fn open_file(filepath: &'static str) -> File {
     let file = File::options()
         .append(true)
         .create(true)
-        .open(filename);
+        .open(filepath);
 
     return file.unwrap();
 }
@@ -109,40 +135,32 @@ fn append_to_file(mut file: &File, buf: &[u8]) {
     file.write(buf).expect("Unable to write data to file");
 }
 
+fn write_file_header(file: &File, magic_number: [u8; 4], input_count: u32, output_count: u32) {
+    append_to_file(file, &magic_number);
+    append_to_file(file, &convert_u32_to_u8_array(&input_count));
+    append_to_file(file, &convert_u32_to_u8_array(&output_count));
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     let (lables, images) = parse_training_files(&args);
-    
-    let image_start_index: usize = (images.data_offset + 1).into();
-    let lable_start_index: usize = (lables.data_offset + 1).into();
-    println!("{:?}", lables.raw_data[lable_start_index]);
 
-    let mut i: usize = 0;
-    let mut buf: [u8; 28] = [0; 28];
+    let model_file = open_file("test.model");
 
-    loop {
-        //println!("{:?}", images.raw_data[image_start_index + i]);
+    // The magic bytes, chose that randomly, this is a representation of 2050
+    const MODEL_MAGIC_BYTES: [u8; 4] = [0, 0, 8, 2];
 
-        if i == (images.column_number * images.row_number).try_into().unwrap() {
-            println!("{:?}", i);
-            break;
-        }
-        if i <= 27 {
-            buf[i] = images.raw_data[image_start_index + i];
-        } else {
-            buf[(i - 1) % 28] = images.raw_data[image_start_index + i];
-        }
+    // Get input neurone count and normalize to start counting at 1
+    let input_count: u32 = (images.column_number * images.row_number) - 1;
 
-        if i % 27 == 0 {
-            println!("{:?}", buf);
-            buf = [0; 28];
-        }
+    // The count of possible outputs the model can have, 0-9 in this case
+    let output_count: u32 = 10;
 
-        i += 1;
-    }
+    // Write the header values
+    write_file_header(&model_file, MODEL_MAGIC_BYTES, input_count, output_count);
+
+    println!("{:?}", images.parse_image(0));
 
     println!("{:?}", args);
-
 }
