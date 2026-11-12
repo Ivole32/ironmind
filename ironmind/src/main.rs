@@ -58,10 +58,10 @@ fn convert_u8_array_to_u32(data: &[u8; 4]) -> u32 {
 }
 
 fn convert_u32_to_u8_array(data: &u32) -> [u8; 4] {
-    println!("{:?}", data >> 24);
-    println!("{:?}", data >> 16);
-    println!("{:?}", data >> 8);
-    println!("{:?}", data << 24 >> 24);
+    //println!("{:?}", data >> 24);
+    //println!("{:?}", data >> 16);
+    //println!("{:?}", data >> 8);
+    //println!("{:?}", data << 24 >> 24);
 
     let data: [u8; 4] = [
         (data >> 24).try_into().unwrap(),
@@ -149,7 +149,7 @@ fn write_file_header(file: &File, magic_number: [u8; 4], input_count: u32, outpu
     append_to_file(file, &convert_u32_to_u8_array(&output_count));
 }
 
-fn train(input_count: u32, output_count: u32, lables: LableFile, images: ImageFile, file: &File) {
+fn train(input_count: u32, output_count: u32, lables: LableFile, images: ImageFile) -> Vec<Vec<u32>> {
     let input_count: usize = input_count.try_into().unwrap();
     let output_count: usize = output_count.try_into().unwrap();
 
@@ -183,12 +183,15 @@ fn train(input_count: u32, output_count: u32, lables: LableFile, images: ImageFi
 
     println!("{:?}; {:?}", model_data, model_data.len());
 
+    return model_data;
+}
+
+fn save_training(model_data: &Vec<Vec<u32>>, file: &File) {
     for pixel in model_data {
         for weight in pixel.iter() {
             append_to_file(file, &convert_u32_to_u8_array(&weight));
         }
     }
-
 }
 
 fn main() {
@@ -214,8 +217,9 @@ fn main() {
 
     println!("{:?}; {:?}", lables.item_count, images.item_count);
 
-    train(input_count, output_count, lables, images, &model_file);
+    let model_data = train(input_count, output_count, lables, images);
 
+    save_training(&model_data, &model_file);
 
     println!("{:?}", args);
 }
