@@ -3,6 +3,15 @@ use std::fs;
 use std::fs::File;
 use std::fs::DirEntry;
 use std::env;
+use std::ops::Index;
+
+#[derive(Debug)]
+struct ModelFile {
+    input_count: u32,
+    output_count: u32,
+    raw_data: Vec<u8>,
+    data_offset: u32,
+}
 
 #[derive(Debug)]
 struct LableFile {
@@ -22,6 +31,15 @@ struct ImageFile {
     raw_data: Vec<u8>,
     data_offset: u32,
     path: DirEntry
+}
+
+impl ModelFile {
+    fn parse_pixels_weights(&self, pixel_index: u32) -> &[u8] {
+        let start: usize = (self.data_offset + pixel_index * 10).try_into().unwrap();
+        let end: usize = (self.data_offset + (pixel_index + 1) * 10).try_into().unwrap();
+
+        return &self.raw_data[start..end];
+    }
 }
 
 impl ImageFile {
@@ -73,8 +91,8 @@ fn convert_u32_to_u8_array(data: &u32) -> [u8; 4] {
     return data;
 }
 
-fn parse_training_files(training_folder_path: &String) -> (LableFile, ImageFile) {
-    let paths = fs::read_dir(training_folder_path).unwrap();
+fn parse_idx_files(idx_folder_path: &String) -> (LableFile, ImageFile) {
+    let paths = fs::read_dir(idx_folder_path).unwrap();
     
     let mut files: (Option<LableFile>, Option<ImageFile>) = (None, None);
 
@@ -126,13 +144,39 @@ fn parse_training_files(training_folder_path: &String) -> (LableFile, ImageFile)
 
 }
 
-fn clear_file(mut file: &File) {
+fn parse_model_file(model_file_path: &String) -> ModelFile {
+    let model: Option<ModelFile>;
+
+    let raw_data: Vec<u8> = fs::read(model_file_path).unwrap();
+
+    let magic_number_data = [raw_data[0], raw_data[1], raw_data[2], raw_data[3]];
+    let magic_number: u32 = convert_u8_array_to_u32(&magic_number_data);
+
+    if magic_number == 2050 {
+        let input_neurone_data = [raw_data[4], raw_data[5], raw_data[6], raw_data[7]];
+        let input_neurone_count: u32 = convert_u8_array_to_u32(&input_neurone_data);
+
+        let output_neurone_data = [raw_data[4], raw_data[5], raw_data[6], raw_data[7]];
+        let output_neurone_count: u32 = convert_u8_array_to_u32(&output_neurone_data);
+
+        let data_offset: u32 = 12;
+
+        model = Some(ModelFile { input_count:input_neurone_count, output_count: output_neurone_count, raw_data, data_offset })
+
+    } else {
+        panic!("Specified model file does not match magic bytes");
+    }
+
+    return model.unwrap();
+
+}
+
+fn clear_file(file: &File) {
     file.set_len(0).expect("Unable to clear file");
 }
 
 fn open_file(filepath: &String) -> File {
     let file = File::options()
-        .truncate(true)
         .write(true)
         .create(true)
         .open(filepath);
@@ -187,6 +231,31 @@ fn train(input_count: u32, output_count: u32, lables: LableFile, images: ImageFi
     return model_data;
 }
 
+fn predict(model: ModelFile, image: &[u8]) -> [u32; 10] {
+    let mut output: [u32; 10] = [0; 10];
+
+    let mut i = 0;
+    for pixel in image {
+        let weights = model.parse_pixels_weights(i);
+
+        let mut j = 0;
+        for weight in weights.iter() {
+            let weight: u32 = (*weight).try_into().unwrap();
+            let pixel: u32 = (*pixel).try_into().unwrap();
+            if pixel > 0 {
+                output[j] += 1 * weight;
+            }
+
+            j += 1;
+        }
+
+        i += 1;
+    }
+    println!("{:?}", output);
+
+    return output;
+}
+
 fn save_training(model_data: &Vec<Vec<u32>>, file: &File) {
     for pixel in model_data {
         for weight in pixel.iter() {
@@ -224,11 +293,13 @@ fn main() {
     let model_file_path = &args[1];
     let idx_folder_path = &args[2];
 
+    // load IDX training or testing files
+    let (lables, images) = parse_idx_files(idx_folder_path);
+
     // open model file
     let model_file = open_file(model_file_path);
 
     if mode == "train" {
-        let (lables, images) = parse_training_files(idx_folder_path);
 
         // remove old model content
         clear_file(&model_file);
@@ -254,7 +325,30 @@ fn main() {
         save_training(&model_data, &model_file);
 
     } else { // has to be "test" as the arg parser already validated that
-        
+        let model = parse_model_file(model_file_path);
+
+        let label = lables.parse_label(0);
+        let image = images.parse_image(0);
+
+        println!("{:?}", label);
+        let predictions = predict(model, image);
+
+        let mut index: usize = 0;
+        for value in predictions {
+            if value == 3286 {
+                break;
+            }
+
+            index += 1;
+
+        }
+
+        if index == label.try_into().unwrap() {
+            println!("Hey!");
+        }
+
+        println!("{:?}", index);
+
     }
 
     println!("{:?}", args);
