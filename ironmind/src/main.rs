@@ -73,11 +73,7 @@ fn convert_u32_to_u8_array(data: &u32) -> [u8; 4] {
     return data;
 }
 
-fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
-    if args.len() <= 1 {
-        panic!("No training folder specified.")
-    }
-    let training_folder_path = &args[1];
+fn parse_training_files(training_folder_path: &String) -> (LableFile, ImageFile) {
     let paths = fs::read_dir(training_folder_path).unwrap();
     
     let mut files: (Option<LableFile>, Option<ImageFile>) = (None, None);
@@ -134,7 +130,7 @@ fn clear_file(mut file: &File) {
     file.set_len(0).expect("Unable to clear file");
 }
 
-fn open_file(filepath: &'static str) -> File {
+fn open_file(filepath: &String) -> File {
     let file = File::options()
         .truncate(true)
         .write(true)
@@ -199,33 +195,67 @@ fn save_training(model_data: &Vec<Vec<u32>>, file: &File) {
     }
 }
 
-fn main() {
+fn parse_args() -> Vec<String> {
+    const ARG_COUNT: usize = 3;
+
     let args: Vec<String> = env::args().collect();
 
-    let (lables, images) = parse_training_files(&args);
+    // increased by one because of the executable beeing the first arg
+    if args.len() != ARG_COUNT + 1 {
+        println!("Please specify all args: [MODE] [FILE] [FOLDER]");
+        println!("[MODE]: train or test");
+        println!("[FILE]: The file path to the model file");
+        println!("[FOLDER]: The file path to the training or testing folder containing the Label and Image IDX files");
+        panic!("")
+    }
 
-    let model_file = open_file("test.model");
-    clear_file(&model_file);
+    if !(args[1].to_lowercase() != "train" || args[1].to_lowercase() != "test") {
+        println!("[MODE] can only be 'train' or 'test'");
+        panic!("")
+    }
 
-    // The magic bytes, chose that randomly, this is a representation of 2050
-    const MODEL_MAGIC_BYTES: [u8; 4] = [0, 0, 8, 2];
+    return args[1..].to_vec();
+}
 
-    // Get input neurone count
-    let input_count: u32 = images.column_number * images.row_number;
+fn main() {
+    let args: Vec<String> = parse_args();
 
-    // The count of possible outputs the model can have, 0-9 in this case
-    let output_count: u32 = 10;
+    let mode = &args[0];
+    let model_file_path = &args[1];
+    let idx_folder_path = &args[2];
 
-    // Write the header values
-    write_file_header(&model_file, MODEL_MAGIC_BYTES, input_count, output_count);
+    // open model file
+    let model_file = open_file(model_file_path);
 
-    //println!("{:?}", images.parse_image(0));
+    if mode == "train" {
+        let (lables, images) = parse_training_files(idx_folder_path);
 
-    println!("{:?}; {:?}", lables.item_count, images.item_count);
+        // remove old model content
+        clear_file(&model_file);
 
-    let model_data = train(input_count, output_count, lables, images);
+        // the magic bytes, chose that randomly, this is a representation of 2050
+        const MODEL_MAGIC_BYTES: [u8; 4] = [0, 0, 8, 2];
 
-    save_training(&model_data, &model_file);
+        // get input neurone count
+        let input_count: u32 = images.column_number * images.row_number;
+
+        // the count of possible outputs the model can have, 0-9 in this case
+        let output_count: u32 = 10;
+
+        // write the header values
+        write_file_header(&model_file, MODEL_MAGIC_BYTES, input_count, output_count);
+
+        dbg!("{:?}; {:?}", lables.item_count, images.item_count);
+
+        // train the model
+        let model_data = train(input_count, output_count, lables, images);
+
+        // save models training
+        save_training(&model_data, &model_file);
+
+    } else { // has to be "test" as the arg parser already validated that
+        
+    }
 
     println!("{:?}", args);
 }
