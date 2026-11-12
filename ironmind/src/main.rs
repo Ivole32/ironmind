@@ -34,11 +34,19 @@ struct ImageFile {
 }
 
 impl ModelFile {
-    fn parse_pixels_weights(&self, pixel_index: u32) -> &[u8] {
-        let start: usize = (self.data_offset + pixel_index * 10).try_into().unwrap();
-        let end: usize = (self.data_offset + (pixel_index + 1) * 10).try_into().unwrap();
+    fn parse_pixels_weights(&self, pixel_index: u32) -> Vec<u32> {
+        let start: usize = (self.data_offset + (pixel_index * 4) * 10).try_into().unwrap();
+        let end: usize = (self.data_offset + (pixel_index + 1) * 40).try_into().unwrap();
 
-        return &self.raw_data[start..end];
+        let mut weights: Vec<u32> = Vec::new();
+
+        // every weight is stored as 4 bytes, so go through the slice in steps of 4
+        for chunk in self.raw_data[start..end].chunks_exact(4) {
+            let weight_data: [u8; 4] = [chunk[0], chunk[1], chunk[2], chunk[3]];
+            weights.push(convert_u8_array_to_u32(&weight_data));
+        }
+
+        return weights;
     }
 }
 
@@ -156,7 +164,7 @@ fn parse_model_file(model_file_path: &String) -> ModelFile {
         let input_neurone_data = [raw_data[4], raw_data[5], raw_data[6], raw_data[7]];
         let input_neurone_count: u32 = convert_u8_array_to_u32(&input_neurone_data);
 
-        let output_neurone_data = [raw_data[4], raw_data[5], raw_data[6], raw_data[7]];
+        let output_neurone_data = [raw_data[8], raw_data[9], raw_data[10], raw_data[11]];
         let output_neurone_count: u32 = convert_u8_array_to_u32(&output_neurone_data);
 
         let data_offset: u32 = 12;
@@ -240,10 +248,10 @@ fn predict(model: ModelFile, image: &[u8]) -> [u32; 10] {
 
         let mut j = 0;
         for weight in weights.iter() {
-            let weight: u32 = (*weight).try_into().unwrap();
+            let weight: u32 = *weight;
             let pixel: u32 = (*pixel).try_into().unwrap();
             if pixel > 0 {
-                output[j] += 1 * weight;
+                output[j] += pixel * weight;
             }
 
             j += 1;
@@ -251,7 +259,7 @@ fn predict(model: ModelFile, image: &[u8]) -> [u32; 10] {
 
         i += 1;
     }
-    println!("{:?}", output);
+    //println!("{:?}", output);
 
     return output;
 }
@@ -325,29 +333,47 @@ fn main() {
         save_training(&model_data, &model_file);
 
     } else { // has to be "test" as the arg parser already validated that
-        let model = parse_model_file(model_file_path);
-
-        let label = lables.parse_label(0);
-        let image = images.parse_image(0);
-
-        println!("{:?}", label);
-        let predictions = predict(model, image);
-
-        let mut index: usize = 0;
-        for value in predictions {
-            if value == 3286 {
+        let mut right = 0;
+        let mut wrong = 0;
+        let mut i = 0;
+        loop {
+            let model = parse_model_file(model_file_path);
+            if i >= 10000 {
                 break;
             }
 
-            index += 1;
+            let label = lables.parse_label(i);
+            let image = images.parse_image(i);
 
-        }
+            let predictions = predict(model, image);
 
-        if index == label.try_into().unwrap() {
-            println!("Hey!");
-        }
+            let mut max = 0;
+            for value in predictions {
+                if value > max {
+                    max = value
+                }
+            }
 
-        println!("{:?}", index);
+            let mut index: usize = 0;
+            for value in predictions {
+                if value == max {
+                    break;
+                }
+
+                index += 1;
+            }
+
+            if index == label.try_into().unwrap() {
+                //println!("Hey!")
+                right += 1;
+            } else {
+                wrong +=1 ;
+            }
+
+            i += 1;
+        };
+
+        println!("Right: {:?}; Wrong: {:?}", right, wrong);
 
     }
 
