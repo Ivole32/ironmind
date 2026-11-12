@@ -130,9 +130,14 @@ fn parse_training_files(args: &Vec<String>) -> (LableFile, ImageFile) {
 
 }
 
+fn clear_file(mut file: &File) {
+    file.set_len(0).expect("Unable to clear file");
+}
+
 fn open_file(filepath: &'static str) -> File {
     let file = File::options()
-        .append(true)
+        .truncate(true)
+        .write(true)
         .create(true)
         .open(filepath);
 
@@ -200,6 +205,7 @@ fn main() {
     let (lables, images) = parse_training_files(&args);
 
     let model_file = open_file("test.model");
+    clear_file(&model_file);
 
     // The magic bytes, chose that randomly, this is a representation of 2050
     const MODEL_MAGIC_BYTES: [u8; 4] = [0, 0, 8, 2];
