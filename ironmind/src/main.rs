@@ -1,11 +1,8 @@
 use std::io::Write;
 use std::fs;
 use std::fs::File;
-use std::fs::DirEntry;
 use std::env;
-use std::ops::Index;
 
-#[derive(Debug)]
 struct ModelFile {
     input_count: u32,
     output_count: u32,
@@ -15,22 +12,18 @@ struct ModelFile {
 
 #[derive(Debug)]
 struct LableFile {
-    magic_number: u32,
     item_count: u32,
     raw_data: Vec<u8>,
-    data_offset: u32,
-    path: DirEntry
+    data_offset: u32
 }
 
 #[derive(Debug)]
 struct ImageFile {
-    magic_number: u32,
     item_count: u32,
     row_number: u32,
     column_number: u32,
     raw_data: Vec<u8>,
-    data_offset: u32,
-    path: DirEntry
+    data_offset: u32
 }
 
 impl ModelFile {
@@ -122,7 +115,7 @@ fn parse_idx_files(idx_folder_path: &String) -> (LableFile, ImageFile) {
             println!("Parsing Lable-File header");
             let data_offset: u32 = 8;
 
-            let lable_file = LableFile {magic_number, item_count, raw_data, data_offset, path: path.unwrap()};
+            let lable_file = LableFile { item_count, raw_data, data_offset };
 
             files.0 = Some(lable_file);
 
@@ -137,7 +130,7 @@ fn parse_idx_files(idx_folder_path: &String) -> (LableFile, ImageFile) {
 
             let data_offset: u32 = 16;
 
-            let image_file = ImageFile { magic_number, item_count, row_number, column_number, raw_data, data_offset, path: path.unwrap() };
+            let image_file = ImageFile { item_count, row_number, column_number, raw_data, data_offset };
 
             files.1 = Some(image_file);
 
@@ -169,7 +162,7 @@ fn parse_model_file(model_file_path: &String) -> ModelFile {
 
         let data_offset: u32 = 12;
 
-        model = Some(ModelFile { input_count:input_neurone_count, output_count: output_neurone_count, raw_data, data_offset })
+        model = Some(ModelFile { input_count: input_neurone_count, output_count: output_neurone_count, raw_data, data_offset })
 
     } else {
         panic!("Specified model file does not match magic bytes");
